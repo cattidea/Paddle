@@ -1,4 +1,4 @@
-#   Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+#   Copyright (c) 2022 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ def pairwise_distance(x, y, p=2., epsilon=1e-6, keepdim=False, name=None):
         \Vert x \Vert _p = \left( \sum_{i=1}^n \vert x_i \vert ^ p \right) ^ {1/p}.
 
     Parameters:
+        x (Tensor):The input is N-D Tensor , the data type of input is float16 or float32 or float64.
+        y (Tensor):The input is N-D Tensor , the data type of input is float16 or float32 or float64.
         p (float): The order of norm. The default value is 2.
         epsilon (float, optional): Add small value to avoid division by zero,
             default value is 1e-6.
@@ -99,6 +101,4 @@ def pairwise_distance(x, y, p=2., epsilon=1e-6, keepdim=False, name=None):
                         attrs=attrs)
 
     return out
-
-
 

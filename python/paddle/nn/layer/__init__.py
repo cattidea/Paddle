@@ -68,7 +68,6 @@ from .conv import Conv3D  # noqa: F401
 from .conv import Conv1DTranspose  # noqa: F401
 from .conv import Conv2DTranspose  # noqa: F401
 from .conv import Conv3DTranspose  # noqa: F401
-from .distance import PairwiseDistance # noqa: F401
 from .loss import BCEWithLogitsLoss  # noqa: F401
 from .loss import CrossEntropyLoss  # noqa: F401
 from .loss import MSELoss  # noqa: F401
