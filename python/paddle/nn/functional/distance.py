@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-
 import paddle
 from .. import Layer
 from ...fluid.data_feeder import check_variable_and_dtype, check_type
