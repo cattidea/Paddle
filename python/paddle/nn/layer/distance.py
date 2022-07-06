@@ -16,7 +16,7 @@ import numpy as np
 
 import paddle
 from .. import Layer
-from ... import functional as F
+from .. import functional as F
 __all__ = []
 
 class PairwiseDistance(Layer):
@@ -70,5 +70,14 @@ class PairwiseDistance(Layer):
         self.name = name
 
     def forward(self, x, y):
-        F.extra_repr()
         return F.pairwise_distance(x, y, self.p, self.epsilon, self.keepdim, self.name)
+
+    def extra_repr(self):
+        main_str = 'p={p}'
+        if self.epsilon != 1e-6:
+            main_str += ', epsilon={epsilon}'
+        if self.keepdim != False:
+            main_str += ', keepdim={keepdim}'
+        if self.name != None:
+            main_str += ', name={name}'
+        return main_str.format(**self.__dict__)
