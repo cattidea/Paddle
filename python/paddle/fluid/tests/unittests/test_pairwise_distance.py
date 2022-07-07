@@ -62,10 +62,9 @@ def test_static(place,
                 functional=False):
     prog = paddle.static.Program()
     startup_prog = paddle.static.Program()
-
     place = fluid.CUDAPlace(
         0) if paddle.fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
-
+    paddle.enable_static()
     with paddle.static.program_guard(prog, startup_prog):
         x = paddle.fluid.data(name='x', shape=x_np.shape, dtype=x_np.dtype)
         y = paddle.fluid.data(name='y', shape=y_np.shape, dtype=x_np.dtype)
@@ -90,6 +89,7 @@ def test_static(place,
                              },
                              fetch_list=[distance])
         static_ret = static_ret[0]
+        paddle.disable_static()
     return static_ret
 
 
@@ -123,9 +123,9 @@ def test_dygraph(place,
 class TestPairwiseDistance(unittest.TestCase):
 
     def test_pairwise_distance(self):
-        all_shape = [[5], [100, 100], [4, 5, 6, 7]]
+        all_shape = [[1, 5], [100, 100], [4, 5, 6, 7]]
         dtypes = ['float32', 'float64']
-        p_list = [0, 1, 2, 'inf', '-inf']
+        p_list = [0, 1, 2, np.inf, -np.inf]
         places = [paddle.CPUPlace()]
         if paddle.device.is_compiled_with_cuda():
             places.append(paddle.CUDAPlace(0))
@@ -177,25 +177,33 @@ class TestPairwiseDistance(unittest.TestCase):
                                 np.allclose(dygraph_functional_ret,
                                             excepted_value))
 
-    def test_pairwise_distance_broadcast1(self):
+    def test_pairwise_distance_broadcast_1(self):
         shape_x = [100, 100]
         shape_y = [100, 1]
         keepdim = False
         x_np = np.random.random(shape_x).astype('float32')
         y_np = np.random.random(shape_y).astype('float32')
-        static_ret = test_static(x_np, y_np, keepdim=keepdim)
-        dygraph_ret = test_dygraph(x_np, y_np, keepdim=keepdim)
+        static_ret = test_static(place=None,
+                                 x_np=x_np,
+                                 y_np=y_np,
+                                 keepdim=keepdim)
+        dygraph_ret = test_dygraph(place=None,
+                                   x_np=x_np,
+                                   y_np=y_np,
+                                   keepdim=keepdim)
         excepted_value = pairwise_distance(x_np, y_np, keepdim=keepdim)
         self.assertTrue(np.allclose(static_ret, dygraph_ret))
         self.assertTrue(np.allclose(static_ret, excepted_value))
         self.assertTrue(np.allclose(dygraph_ret, excepted_value))
 
-        static_founctional_ret = test_static(x_np,
-                                             y_np,
+        static_founctional_ret = test_static(place=None,
+                                             x_np=x_np,
+                                             y_np=y_np,
                                              keepdim=keepdim,
                                              functional=True)
-        dygraph_founctional_ret = test_dygraph(x_np,
-                                               y_np,
+        dygraph_founctional_ret = test_dygraph(place=None,
+                                               x_np=x_np,
+                                               y_np=y_np,
                                                keepdim=keepdim,
                                                functional=True)
         self.assertTrue(
@@ -203,25 +211,33 @@ class TestPairwiseDistance(unittest.TestCase):
         self.assertTrue(np.allclose(static_founctional_ret, excepted_value))
         self.assertTrue(np.allclose(dygraph_founctional_ret, excepted_value))
 
-    def test_pairwise_distance_broadcast2(self):
+    def test_pairwise_distance_broadcast_2(self):
         shape_x = [100, 100]
         shape_y = [100]
         keepdim = False
         x_np = np.random.random(shape_x).astype('float32')
         y_np = np.random.random(shape_y).astype('float32')
-        static_ret = test_static(x_np, y_np, keepdim=keepdim)
-        dygraph_ret = test_dygraph(x_np, y_np, keepdim=keepdim)
+        static_ret = test_static(place=None,
+                                 x_np=x_np,
+                                 y_np=y_np,
+                                 keepdim=keepdim)
+        dygraph_ret = test_dygraph(place=None,
+                                   x_np=x_np,
+                                   y_np=y_np,
+                                   keepdim=keepdim)
         excepted_value = pairwise_distance(x_np, y_np, keepdim=keepdim)
         self.assertTrue(np.allclose(static_ret, dygraph_ret))
         self.assertTrue(np.allclose(static_ret, excepted_value))
         self.assertTrue(np.allclose(dygraph_ret, excepted_value))
 
-        static_founctional_ret = test_static(x_np,
-                                             y_np,
+        static_founctional_ret = test_static(place=None,
+                                             x_np=x_np,
+                                             y_np=y_np,
                                              keepdim=keepdim,
                                              functional=True)
-        dygraph_founctional_ret = test_dygraph(x_np,
-                                               y_np,
+        dygraph_founctional_ret = test_dygraph(place=None,
+                                               x_np=x_np,
+                                               y_np=y_np,
                                                keepdim=keepdim,
                                                functional=True)
         self.assertTrue(
