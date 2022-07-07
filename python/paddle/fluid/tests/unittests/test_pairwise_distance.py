@@ -231,25 +231,25 @@ class TestPairwiseDistance(unittest.TestCase):
         self.assertTrue(np.allclose(static_ret, excepted_value))
         self.assertTrue(np.allclose(dygraph_ret, excepted_value))
 
-        static_founctional_ret = test_static(place=place,
-                                             x_np=x_np,
-                                             y_np=y_np,
-                                             epsilon=epsilon,
-                                             keepdim=keepdim,
-                                             functional=True)
-        dygraph_founctional_ret = test_dygraph(place=place,
-                                               x_np=x_np,
-                                               y_np=y_np,
-                                               epsilon=epsilon,
-                                               keepdim=keepdim,
-                                               functional=True)
+        static_functional_ret = test_static(place=place,
+                                            x_np=x_np,
+                                            y_np=y_np,
+                                            epsilon=epsilon,
+                                            keepdim=keepdim,
+                                            functional=True)
+        dygraph_functional_ret = test_dygraph(place=place,
+                                              x_np=x_np,
+                                              y_np=y_np,
+                                              epsilon=epsilon,
+                                              keepdim=keepdim,
+                                              functional=True)
         self.assertEqual(static_ret.shape, dygraph_ret.shape)
         self.assertEqual(static_ret.shape, excepted_value.shape)
         self.assertEqual(dygraph_ret.shape, excepted_value.shape)
         self.assertTrue(
-            np.allclose(static_founctional_ret, dygraph_founctional_ret))
-        self.assertTrue(np.allclose(static_founctional_ret, excepted_value))
-        self.assertTrue(np.allclose(dygraph_founctional_ret, excepted_value))
+            np.allclose(static_functional_ret, dygraph_functional_ret))
+        self.assertTrue(np.allclose(static_functional_ret, excepted_value))
+        self.assertTrue(np.allclose(dygraph_functional_ret, excepted_value))
 
     def test_pairwise_distance_broadcast_2(self):
         shape_x = [100, 100]
@@ -280,25 +280,25 @@ class TestPairwiseDistance(unittest.TestCase):
         self.assertTrue(np.allclose(static_ret, excepted_value))
         self.assertTrue(np.allclose(dygraph_ret, excepted_value))
 
-        static_founctional_ret = test_static(place=place,
-                                             x_np=x_np,
-                                             y_np=y_np,
-                                             epsilon=epsilon,
-                                             keepdim=keepdim,
-                                             functional=True)
-        dygraph_founctional_ret = test_dygraph(place=place,
-                                               x_np=x_np,
-                                               y_np=y_np,
-                                               epsilon=epsilon,
-                                               keepdim=keepdim,
-                                               functional=True)
+        static_functional_ret = test_static(place=place,
+                                            x_np=x_np,
+                                            y_np=y_np,
+                                            epsilon=epsilon,
+                                            keepdim=keepdim,
+                                            functional=True)
+        dygraph_functional_ret = test_dygraph(place=place,
+                                              x_np=x_np,
+                                              y_np=y_np,
+                                              epsilon=epsilon,
+                                              keepdim=keepdim,
+                                              functional=True)
         self.assertEqual(static_ret.shape, dygraph_ret.shape)
         self.assertEqual(static_ret.shape, excepted_value.shape)
         self.assertEqual(dygraph_ret.shape, excepted_value.shape)
         self.assertTrue(
-            np.allclose(static_founctional_ret, dygraph_founctional_ret))
-        self.assertTrue(np.allclose(static_founctional_ret, excepted_value))
-        self.assertTrue(np.allclose(dygraph_founctional_ret, excepted_value))
+            np.allclose(static_functional_ret, dygraph_functional_ret))
+        self.assertTrue(np.allclose(static_functional_ret, excepted_value))
+        self.assertTrue(np.allclose(dygraph_functional_ret, excepted_value))
 
 
 if __name__ == "__main__":

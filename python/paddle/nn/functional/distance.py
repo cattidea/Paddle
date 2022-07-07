@@ -45,25 +45,13 @@ def pairwise_distance(x, y, p=2., epsilon=1e-6, keepdim=False, name=None):
         name (str, optional): Name for the operation (optional, default is None).
             For more information, please refer to :ref:`api_guide_Name`.
 
-    Shape:
-        x: :math:`[N, D]` where `D` is the dimension of vector, available dtype
-            is float32, float64.
-        y: :math:`[N, D]`, y have the same shape and dtype as x.
-        out: :math:`[N]`. If :attr:`keepdim` is ``True``, the out shape is :math:`[N, 1]`.
-            The same dtype as input tensor.
-
     Examples:
         .. code-block:: python
 
             import paddle
-            import numpy as np
-            paddle.disable_static()
-            x_np = np.array([[1., 3.], [3., 5.]]).astype(np.float64)
-            y_np = np.array([[5., 6.], [7., 8.]]).astype(np.float64)
-            x = paddle.to_tensor(x_np)
-            y = paddle.to_tensor(y_np)
-            dist = paddle.nn.PairwiseDistance()
-            distance = dist(x, y)
+            x = paddle.to_tensor([[1., 3.], [3., 5.]], dtype=paddle.float64)
+            y = paddle.to_tensor([[5., 6.], [7., 8.]], dtype=paddle.float64)
+            distance = paddle.nn.functional.pairwise_distance(x, y)
             print(distance.numpy()) # [5. 5.]
 
     """
