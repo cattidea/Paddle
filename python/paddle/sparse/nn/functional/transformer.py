@@ -19,13 +19,15 @@ from paddle.fluid.framework import dygraph_only
 
 
 @dygraph_only
-def attention(query,
-              key,
-              value,
-              sparse_mask,
-              key_padding_mask=None,
-              attn_mask=None,
-              name=None):
+def attention(
+    query,
+    key,
+    value,
+    sparse_mask,
+    key_padding_mask=None,
+    attn_mask=None,
+    name=None,
+):
     """
     Note:
         This API is only used from ``CUDA 11.7`` .
@@ -89,5 +91,6 @@ def attention(query,
             output = paddle.sparse.nn.functional.attention(query, key, value, sp_mask, kp_mask, attn_mask)
             output.backward()
     """
-    return _C_ops.sparse_fused_attention(query, key, value, sparse_mask,
-                                         key_padding_mask, attn_mask)
+    return _C_ops.sparse_fused_attention(
+        query, key, value, sparse_mask, key_padding_mask, attn_mask
+    )
