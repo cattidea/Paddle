@@ -688,7 +688,7 @@ def to_safe_name(s):
             -1,
         ),
     ],
-)  # yapf: disable
+)
 class TestFrame(unittest.TestCase):
     def test_frame(self):
         np.testing.assert_allclose(
@@ -723,7 +723,7 @@ class TestFrame(unittest.TestCase):
             -1,
         ),
     ],
-)  # yapf: disable
+)
 class TestFrameStatic(unittest.TestCase):
     def test_frame_static(self):
         paddle.enable_static()
@@ -796,7 +796,7 @@ class TestFrameStatic(unittest.TestCase):
             ValueError,
         ),
     ],
-)  # yapf: disable
+)
 class TestFrameException(unittest.TestCase):
     def test_frame(self):
         with self.assertRaises(self.expect_exception):
@@ -819,7 +819,7 @@ class TestFrameException(unittest.TestCase):
         ('test_4d_input1', rand_x(4, np.float64, shape=[8, 12, 5, 3]), 5, 0),
         ('test_4d_input2', rand_x(4, np.float64, shape=[3, 5, 12, 8]), 5, -1),
     ],
-)  # yapf: disable
+)
 class TestOverlapAdd(unittest.TestCase):
     def test_overlap_add(self):
         np.testing.assert_allclose(
@@ -843,7 +843,7 @@ class TestOverlapAdd(unittest.TestCase):
         ('test_4d_input1', rand_x(4, np.float64, shape=[8, 12, 5, 3]), 5, 0),
         ('test_4d_input2', rand_x(4, np.float64, shape=[3, 5, 12, 8]), 5, -1),
     ],
-)  # yapf: disable
+)
 class TestOverlapAddStatic(unittest.TestCase):
     def test_overlap_add_static(self):
         paddle.enable_static()
@@ -881,7 +881,7 @@ class TestOverlapAddStatic(unittest.TestCase):
             ValueError,
         ),
     ],
-)  # yapf: disable
+)
 class TestOverlapAddException(unittest.TestCase):
     def test_overlap_add(self):
         with self.assertRaises(self.expect_exception):
@@ -1008,7 +1008,7 @@ class TestOverlapAddException(unittest.TestCase):
             True,
         ),
     ],
-)  # yapf: disable
+)
 class TestStft(unittest.TestCase):
     def test_stft(self):
         if self.window is None:
@@ -1165,7 +1165,7 @@ class TestStft(unittest.TestCase):
             AssertionError,
         ),
     ],
-)  # yapf: disable
+)
 class TestStftException(unittest.TestCase):
     def test_stft(self):
         if self.window is None:
@@ -1295,7 +1295,7 @@ class TestStftException(unittest.TestCase):
             False,
         ),
     ],
-)  # yapf: disable
+)
 class TestIstft(unittest.TestCase):
     def test_istft(self):
         if self.window is None:
@@ -1517,7 +1517,7 @@ class TestIstft(unittest.TestCase):
             ValueError,
         ),
     ],
-)  # yapf: disable
+)
 class TestIstftException(unittest.TestCase):
     def test_istft(self):
         if self.window is None:
