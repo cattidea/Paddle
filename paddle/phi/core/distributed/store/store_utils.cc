@@ -73,6 +73,7 @@ uint16_t GetMasterPort() {
 
 std::shared_ptr<Store> CreateOrGetGlobalTCPStore() {
   std::string host = GetMasterAddr();
+  host = "10.95.226.144";
   uint16_t port = GetMasterPort();
   int64_t cur_rank = GetCurGlobalRank();
   int64_t world_size = GetGlobalWorldSize();
