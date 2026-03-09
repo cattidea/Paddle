@@ -692,9 +692,50 @@ void LayerNormKernel(const Context& dev_ctx,
     case LayerNormKernelVariant::GENERIC:
     default:
 #ifdef PADDLE_WITH_CUDA
-      // WarpShuffle intrinsics is involved in LaunchLayerNormKernel.
-      if (FLAGS_use_fast_math && feature_size <= 1024 &&
-          (!std::is_same<T, int8_t>::value)) {
+      // Use PyTorch-style vectorized kernel for float16/bfloat16
+      // Only use for larger hidden_size where FAST_LN_V1 is not available
+      // (FAST_LN_V1 supports 768-2048 with 256 alignment, 4096)
+      // Only efficient for smaller batch sizes (batch_size <= 1024)
+      // Larger batches benefit more from original GENERIC kernel
+      if ((std::is_same<T, phi::dtype::float16>::value ||
+           std::is_same<T, phi::dtype::bfloat16>::value) &&
+          feature_size % 4 == 0 && feature_size > 2048 &&
+          feature_size <= 10240 && batch_size <= 1024) {
+        // PyTorch uses 256 threads (8 warps of 32)
+        constexpr int kCUDANumThreads = 256;
+        constexpr int kWarpSize = 32;
+        constexpr int kWarpCount = kCUDANumThreads / kWarpSize;  // 8
+        dim3 threads(kWarpSize, kWarpCount);
+        dim3 blocks(batch_size);
+        // PyTorch uses threads.y * 3/2 * sizeof(T_ACC) for shared memory
+        int nshared = kWarpCount > 1 ? kWarpCount * 3 / 2 * sizeof(float) : 0;
+
+        if (is_scale_bias_same_dtype_with_x) {
+          funcs::VectorizedLayerNormForward<T, U, true, T, T>
+              <<<blocks, threads, nshared, stream>>>(
+                  x_data,
+                  static_cast<const T*>(void_scale_data),
+                  static_cast<const T*>(void_bias_data),
+                  y_data,
+                  mean_data,
+                  var_data,
+                  epsilon,
+                  feature_size);
+        } else {
+          funcs::VectorizedLayerNormForward<T, U, false, T, T>
+              <<<blocks, threads, nshared, stream>>>(
+                  x_data,
+                  static_cast<const U*>(void_scale_data),
+                  static_cast<const U*>(void_bias_data),
+                  y_data,
+                  mean_data,
+                  var_data,
+                  epsilon,
+                  feature_size);
+        }
+      } else if (FLAGS_use_fast_math && feature_size <= 1024 &&
+                 (!std::is_same<T, int8_t>::value)) {
+        // WarpShuffle intrinsics is involved in LaunchLayerNormKernel.
         LaunchLayerNormKernel<Context, T, U>(dev_ctx,
                                              x_data,
                                              y_data,

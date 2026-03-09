@@ -341,6 +341,217 @@ __global__ void LayerNormForward(
   }
 }
 
+// ============================================================================
+// PyTorch-style Vectorized LayerNorm Kernel (from
+// https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/layer_norm_kernel.cu)
+// Key optimizations:
+// - 4-element vectorized loads/stores
+// - Single kernel: compute stats and apply normalization in one pass
+// - Multi-warp strategy (warp_size * warp_count per row)
+// - Welford algorithm for numerically stable mean/variance computation
+// ============================================================================
+
+constexpr int kPyTorchVecSize = 4;
+constexpr int kPyTorchWarpSize = 32;
+
+// PyTorch's WARP_SHFL macro
+#define WARP_SHFL(value, lane) \
+  phi::backends::gpu::CudaShuffleSync(0xffffffff, value, lane)
+#define WARP_SHFL_DOWN(value, offset) \
+  phi::backends::gpu::CudaShuffleDownSync(0xffffffff, value, offset)
+
+// Aligned vector for vectorized loads/stores (PyTorch style)
+template <typename T, int vec_size>
+struct alignas(sizeof(T) * vec_size) AlignedVecTorch {
+  T val[vec_size];
+};
+
+// Welford data structure (PyTorch style)
+struct WelfordDataTorch {
+  float mean;
+  float m2;  // sum of squared differences
+  float count;
+
+  __device__ __host__ WelfordDataTorch() : mean(0.f), m2(0.f), count(0.f) {}
+
+  __device__ __host__ WelfordDataTorch(float mean, float m2, float count)
+      : mean(mean), m2(m2), count(count) {}
+};
+
+// Welford online update - PyTorch style
+template <typename U>
+__device__ __forceinline__ WelfordDataTorch
+cuWelfordOnlineSum(U val, const WelfordDataTorch &curr) {
+  U delta = val - curr.mean;
+  U new_count = curr.count + 1.0f;
+  U new_mean = curr.mean + delta / new_count;
+  U delta2 = val - new_mean;
+  return {new_mean, curr.m2 + delta * delta2, new_count};
+}
+
+// Welford combine - PyTorch style
+__device__ __forceinline__ WelfordDataTorch
+cuWelfordCombine(const WelfordDataTorch &a, const WelfordDataTorch &b) {
+  using U = decltype(b.count);
+  U delta = b.mean - a.mean;
+  U count = a.count + b.count;
+  U mean, m2;
+  if (count > U(0)) {
+    U coef = 1.0f / count;
+    U n_a = a.count * coef;
+    U n_b = b.count * coef;
+    mean = n_a * a.mean + n_b * b.mean;
+    m2 = a.m2 + b.m2 + delta * delta * a.count * n_b;
+  } else {
+    mean = U(0);
+    m2 = U(0);
+  }
+  return {mean, m2, count};
+}
+
+// Compute statistics using Welford with vectorization - PyTorch style
+template <typename T, typename U>
+__device__ __forceinline__ WelfordDataTorch
+compute_stats_torch(const T *__restrict__ X, const int N, float *buf) {
+  using vec_t = AlignedVecTorch<T, kPyTorchVecSize>;
+  const vec_t *X_vec = reinterpret_cast<const vec_t *>(X);
+  const int numx = blockDim.x * blockDim.y;
+  const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
+  const int n_vec_to_read = N / kPyTorchVecSize;
+  WelfordDataTorch wd(0.f, 0.f, 0.f);
+
+  // Vectorized reduction with Welford algorithm
+  for (int i = thrx; i < n_vec_to_read; i += numx) {
+    vec_t data = X_vec[i];
+#pragma unroll
+    for (int ii = 0; ii < kPyTorchVecSize; ii++) {
+      wd = cuWelfordOnlineSum<U>(static_cast<U>(data.val[ii]), wd);
+    }
+  }
+
+  // Warp-level reduction using shuffle (PyTorch style)
+  for (int offset = kPyTorchWarpSize >> 1; offset > 0; offset >>= 1) {
+    WelfordDataTorch wdB{WARP_SHFL_DOWN(wd.mean, offset),
+                         WARP_SHFL_DOWN(wd.m2, offset),
+                         WARP_SHFL_DOWN(wd.count, offset)};
+    wd = cuWelfordCombine(wd, wdB);
+  }
+
+  // Inter-warp reductions via shared memory (PyTorch style)
+  if (blockDim.y > 1) {
+    float *meansigmabuf = buf;
+    float *countbuf = buf + blockDim.y;
+    for (int offset = blockDim.y / 2; offset > 0; offset /= 2) {
+      if (threadIdx.x == 0 && threadIdx.y >= offset &&
+          threadIdx.y < 2 * offset) {
+        const int wrt_y = threadIdx.y - offset;
+        meansigmabuf[2 * wrt_y] = wd.mean;
+        meansigmabuf[2 * wrt_y + 1] = wd.m2;
+        countbuf[wrt_y] = wd.count;
+      }
+      __syncthreads();
+      if (threadIdx.x == 0 && threadIdx.y < offset) {
+        WelfordDataTorch wdB{meansigmabuf[2 * threadIdx.y],
+                             meansigmabuf[2 * threadIdx.y + 1],
+                             countbuf[threadIdx.y]};
+        wd = cuWelfordCombine(wd, wdB);
+      }
+      __syncthreads();
+    }
+    if (threadIdx.x == 0 && threadIdx.y == 0) {
+      meansigmabuf[0] = wd.mean;
+      meansigmabuf[1] = wd.m2 / static_cast<float>(N);  // variance
+    }
+    __syncthreads();
+    return {meansigmabuf[0], meansigmabuf[1], 0.f};
+  } else {
+    return {WARP_SHFL(wd.mean, 0),
+            WARP_SHFL(wd.m2, 0) / static_cast<float>(N),
+            0.f};
+  }
+}
+
+// Vectorized LayerNorm forward kernel - PyTorch style
+// For float16/bfloat16 with aligned memory and N multiple of 4
+template <typename T,
+          typename U,
+          bool ScaleBiasWithSameTypeX = false,
+          typename InType = T,
+          typename OutType = T>
+__global__ __launch_bounds__(256) void VectorizedLayerNormForward(
+    const InType *__restrict__ x,
+    const LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX> *__restrict__ scale,
+    const LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX> *__restrict__ bias,
+    OutType *__restrict__ y,
+    U *__restrict__ mean,
+    U *__restrict__ var,
+    float epsilon,
+    int64_t feature_size) {
+  extern __shared__ float s_data[];
+
+  using ScaleT = LayerNormScaleBiasT<T, U, ScaleBiasWithSameTypeX>;
+
+  const int row_idx = blockIdx.x;
+  const InType *block_row = x + row_idx * feature_size;
+
+  // Compute statistics using Welford algorithm
+  WelfordDataTorch wd =
+      compute_stats_torch<InType, U>(block_row, feature_size, s_data);
+
+  U rstd_val = rsqrt_<U>(wd.m2 + static_cast<U>(epsilon));
+  U mean_val = wd.mean;
+
+  // Apply normalization with vectorized stores
+  using vec_t = AlignedVecTorch<InType, kPyTorchVecSize>;
+  using scale_vec_t = AlignedVecTorch<ScaleT, kPyTorchVecSize>;
+  const vec_t *X_vec = reinterpret_cast<const vec_t *>(block_row);
+  const scale_vec_t *gamma_vec =
+      (scale != nullptr) ? reinterpret_cast<const scale_vec_t *>(scale)
+                         : nullptr;
+  const scale_vec_t *beta_vec =
+      (bias != nullptr) ? reinterpret_cast<const scale_vec_t *>(bias) : nullptr;
+  vec_t *Y_vec = reinterpret_cast<vec_t *>(y + row_idx * feature_size);
+
+  const int numx = blockDim.x * blockDim.y;
+  const int thrx = threadIdx.x + threadIdx.y * blockDim.x;
+  const int n_vec_to_read = feature_size / kPyTorchVecSize;
+
+  for (int i = thrx; i < n_vec_to_read; i += numx) {
+    vec_t data = X_vec[i];
+    vec_t out;
+
+#pragma unroll
+    for (int ii = 0; ii < kPyTorchVecSize; ii++) {
+      U x_val = static_cast<U>(data.val[ii]);
+      if (gamma_vec != nullptr && beta_vec != nullptr) {
+        U gamma_val = static_cast<U>(gamma_vec[i].val[ii]);
+        U beta_val = static_cast<U>(beta_vec[i].val[ii]);
+        out.val[ii] = static_cast<OutType>(
+            gamma_val * (x_val - mean_val) * rstd_val + beta_val);
+      } else if (gamma_vec != nullptr) {
+        U gamma_val = static_cast<U>(gamma_vec[i].val[ii]);
+        out.val[ii] =
+            static_cast<OutType>(gamma_val * (x_val - mean_val) * rstd_val);
+      } else if (beta_vec != nullptr) {
+        U beta_val = static_cast<U>(beta_vec[i].val[ii]);
+        out.val[ii] =
+            static_cast<OutType>((x_val - mean_val) * rstd_val + beta_val);
+      } else {
+        out.val[ii] = static_cast<OutType>((x_val - mean_val) * rstd_val);
+      }
+    }
+    Y_vec[i] = out;
+  }
+
+  if (thrx == 0) {
+    mean[row_idx] = mean_val;
+    var[row_idx] = rstd_val;
+  }
+}
+
+// End of PyTorch-style Vectorized LayerNorm Kernel
+// ============================================================================
+
 template <typename T, typename U, int VPT>
 __inline__ __device__ void cuLoadAddStridedInputs(const int64_t i1_block,
                                                   const int thr_load_row_off,
